@@ -6,8 +6,6 @@ import torch
 
 from others.logging import logger
 
-
-
 class Batch(object):
     def _pad(self, data, pad_id, width=-1):
         if (width == -1):
@@ -15,24 +13,54 @@ class Batch(object):
         rtn_data = [d + [pad_id] * (width - len(d)) for d in data]
         return rtn_data
 
-    def __init__(self, data=None, device=None,  is_test=False):
+    def removeOrPad(self, d, maxSent, pad_id):
+
+        if len(d) >= maxSent:
+            return d[:maxSent]
+        else:
+            return d + [[pad_id]*len(self.args.syntFeatIndexList)]*(maxSent-len(d))
+    def _padSyncFeatures(self, pre_labels , dataList, pad_id):
+
+            maxSent = max(len(d) for d in pre_labels)
+        
+        
+            return [ self.removeOrPad(d, maxSent, pad_id) for d in dataList]
+
+
+    def __init__(self, args, data=None, device=None,  is_test=False):
         """Create a Batch from a list of examples."""
+        self.args = args
         if data is not None:
             self.batch_size = len(data)
             pre_src = [x[0] for x in data]
             pre_labels = [x[1] for x in data]
             pre_segs = [x[2] for x in data]
             pre_clss = [x[3] for x in data]
+            #pre_sync = [ for i,xSent in  enumeratea(xx) for xx in x[4] for x in data]
+            pre_sync = []
+            for x in data:
+                artiSyncFeats = []
+                for xx in x[4]:
+                    artiSyncFeats.append([ sentFeat for i, sentFeat in enumerate(xx) if i in self.args.syntFeatIndexList])
+                    
+                pre_sync.append(artiSyncFeats)
 
+            #New Line
             src = torch.tensor(self._pad(pre_src, 0))
 
             labels = torch.tensor(self._pad(pre_labels, 0))
             segs = torch.tensor(self._pad(pre_segs, 0))
-            mask = 1 - (src == 0)
+            #mask = 1 - (src == 0)
+            mask = ~(src == 0)
 
             clss = torch.tensor(self._pad(pre_clss, -1))
-            mask_cls = 1 - (clss == -1)
+            #mask_cls = 1 - (clss == -1)
+            mask_cls = ~(clss == -1)
+            
             clss[clss == -1] = 0
+
+            sync = torch.tensor(self._padSyncFeatures(pre_labels, pre_sync, 0))
+            
 
             setattr(self, 'clss', clss.to(device))
             setattr(self, 'mask_cls', mask_cls.to(device))
@@ -40,6 +68,9 @@ class Batch(object):
             setattr(self, 'labels', labels.to(device))
             setattr(self, 'segs', segs.to(device))
             setattr(self, 'mask', mask.to(device))
+            setattr(self, 'syntFeats', sync.to(device))
+            #setattr(self, 'syntFeats', sync)
+
 
             if (is_test):
                 src_str = [x[-2] for x in data]
@@ -184,11 +215,12 @@ class DataIterator(object):
         clss = ex['clss']
         src_txt = ex['src_txt']
         tgt_txt = ex['tgt_txt']
+        sync = ex['sync']
 
         if(is_test):
-            return src,labels,segs, clss, src_txt, tgt_txt
+            return src,labels,segs, clss, sync , src_txt, tgt_txt
         else:
-            return src,labels,segs, clss
+            return src,labels,segs, clss, sync
 
     def batch_buffer(self, data, batch_size):
         minibatch, size_so_far = [], 0
@@ -232,7 +264,7 @@ class DataIterator(object):
                     continue
                 self.iterations += 1
                 self._iterations_this_epoch += 1
-                batch = Batch(minibatch, self.device, self.is_test)
+                batch = Batch(self.args, minibatch, self.device, self.is_test)
 
                 yield batch
             return

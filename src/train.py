@@ -325,11 +325,17 @@ if __name__ == '__main__':
     parser.add_argument("-train_from", default='')
     parser.add_argument("-report_rouge", type=str2bool, nargs='?',const=True,default=True)
     parser.add_argument("-block_trigram", type=str2bool, nargs='?', const=True, default=True)
+    parser.add_argument("-syntFeatIndexList", type = str, default = ",".join(str(i) for i in list(range(0,18))))
 
     args = parser.parse_args()
     args.gpu_ranks = [int(i) for i in args.gpu_ranks.split(',')]
     os.environ["CUDA_VISIBLE_DEVICES"] = args.visible_gpus
 
+    print(args.syntFeatIndexList)
+    args.syntFeatIndexList = [ int(value) for value in args.syntFeatIndexList.split(",")]
+    
+    print(args.syntFeatIndexList)
+    
     init_logger(args.log_file)
     device = "cpu" if args.visible_gpus == '-1' else "cuda"
     device_id = 0 if device == "cuda" else -1

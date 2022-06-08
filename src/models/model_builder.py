@@ -64,7 +64,8 @@ class Summarizer(nn.Module):
         if (args.encoder == 'classifier'):
             self.encoder = Classifier(self.bert.model.config.hidden_size)
         elif(args.encoder=='transformer'):
-            self.encoder = TransformerInterEncoder(self.bert.model.config.hidden_size, args.ff_size, args.heads,
+            #self.encoder = TransformerInterEncoder(self.bert.model.config.hidden_size, args.ff_size, args.heads,
+            self.encoder = TransformerInterEncoder(self.bert.model.config.hidden_size, len(self.args.syntFeatIndexList) ,args.ff_size, args.heads,
                                                    args.dropout, args.inter_layers)
         elif(args.encoder=='rnn'):
             self.encoder = RNNEncoder(bidirectional=True, num_layers=1,
@@ -88,10 +89,10 @@ class Summarizer(nn.Module):
     def load_cp(self, pt):
         self.load_state_dict(pt['model'], strict=True)
 
-    def forward(self, x, segs, clss, mask, mask_cls, sentence_range=None):
+    def forward(self, x, segs, clss, mask, mask_cls, syntFeats, sentence_range=None):
 
         top_vec = self.bert(x, segs, mask)
         sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
         sents_vec = sents_vec * mask_cls[:, :, None].float()
-        sent_scores = self.encoder(sents_vec, mask_cls).squeeze(-1)
+        sent_scores = self.encoder(sents_vec, mask_cls, syntFeats).squeeze(-1)
         return sent_scores, mask_cls
